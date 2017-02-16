@@ -61,9 +61,9 @@ typedef struct {
     sm_rigid_transform_2d_t * prev_sm_odom;
 
     int verbose;
-    double front_laser_offset;
-    double rear_laser_offset;
-    double rear_laser_ang_offset;
+    double primary_laser_offset;
+    //double rear_laser_offset;
+    //double rear_laser_ang_offset;
 
     bot_core_planar_lidar_t * r_laser_msg;
     int64_t r_utime;
@@ -212,46 +212,48 @@ static void sig_action(int signal, siginfo_t *s, void *user)
     still_groovy = 0;
 }
 
-void read_parameters(app_t * app)
+int read_parameters(app_t * app)
 {
     BotParam *c = app->param;//bot_param_new_from_server(app->lcm, 1);//globals_get_config();
     BotFrames *frames = bot_frames_get_global (app->lcm, c);
     //char key[2048];
 
     char *coord_frame;
-    coord_frame = bot_param_get_planar_lidar_coord_frame (c, "SKIRT_FRONT");
+    coord_frame = bot_param_get_planar_lidar_coord_frame (c, app->chan);
 
-    if (!coord_frame)
-        fprintf (stderr, "\tError determining front laser coordinate frame\n");
+    if (!coord_frame) {
+        fprintf (stderr, "\tError determining %s laser coordinate frame\n", app->chan);
+        return -1;
+    }
 
-    BotTrans front_laser_to_body;
-    if (!bot_frames_get_trans (frames, coord_frame, "body", &front_laser_to_body))
-        fprintf (stderr, "\tError determining front laser coordinate frame\n");
+    BotTrans primary_laser_to_body;
+    if (!bot_frames_get_trans (frames, coord_frame, "body", &primary_laser_to_body))
+        fprintf (stderr, "\tError determining %s laser coordinate frame\n", app->chan);
     else
-        fprintf(stderr,"\tFront Laser Pos : (%f,%f,%f)\n",
-                front_laser_to_body.trans_vec[0], front_laser_to_body.trans_vec[1], front_laser_to_body.trans_vec[2]);
+        fprintf(stderr,"\t%s Laser Pos : (%f,%f,%f)\n", app->chan,
+                primary_laser_to_body.trans_vec[0], primary_laser_to_body.trans_vec[1], primary_laser_to_body.trans_vec[2]);
 
-    app->front_laser_offset = front_laser_to_body.trans_vec[0];
+    app->primary_laser_offset = primary_laser_to_body.trans_vec[0];
 
 
-    coord_frame = NULL;
-    coord_frame = bot_param_get_planar_lidar_coord_frame (c, "SKIRT_REAR");
+    // coord_frame = NULL;
+    // coord_frame = bot_param_get_planar_lidar_coord_frame (c, "SKIRT_REAR");
 
-    if (!coord_frame)
-        fprintf (stderr, "\tError determining rear laser coordinate frame\n");
+    // if (!coord_frame)
+    //     fprintf (stderr, "\tError determining rear laser coordinate frame\n");
 
-    BotTrans rear_laser_to_body;
-    if (!bot_frames_get_trans (frames, coord_frame, "body", &rear_laser_to_body))
-        fprintf (stderr, "\tError determining rear laser coordinate frame\n");
-    else
-        fprintf(stderr,"\tRear Laser Pos : (%f,%f,%f)\n",
-                rear_laser_to_body.trans_vec[0], rear_laser_to_body.trans_vec[1], rear_laser_to_body.trans_vec[2]);
+    // BotTrans rear_laser_to_body;
+    // if (!bot_frames_get_trans (frames, coord_frame, "body", &rear_laser_to_body))
+    //     fprintf (stderr, "\tError determining rear laser coordinate frame\n");
+    // else
+    //     fprintf(stderr,"\tRear Laser Pos : (%f,%f,%f)\n",
+    //             rear_laser_to_body.trans_vec[0], rear_laser_to_body.trans_vec[1], rear_laser_to_body.trans_vec[2]);
 
-    app->rear_laser_offset = rear_laser_to_body.trans_vec[0];
+    // app->rear_laser_offset = rear_laser_to_body.trans_vec[0];
 
-    double rear_rpy[3];
-    bot_quat_to_roll_pitch_yaw (rear_laser_to_body.rot_quat, rear_rpy);
-    app->rear_laser_ang_offset = rear_rpy[2];
+    // double rear_rpy[3];
+    // bot_quat_to_roll_pitch_yaw (rear_laser_to_body.rot_quat, rear_rpy);
+    // app->rear_laser_ang_offset = rear_rpy[2];
 
 
 
@@ -262,7 +264,7 @@ void read_parameters(app_t * app)
     // }else{
     //     fprintf(stderr,"\tFront Laser Pos : (%f,%f,%f)\n",position[0], position[1], position[2]);
     // }
-    // app->front_laser_offset = position[0];
+    // app->primary_laser_offset = position[0];
 
     // double rpy[3];
     // sprintf(key, "%s.%s.%s.rpy", "calibration", "planar_lidars", "SKIRT_FRONT");
@@ -287,6 +289,8 @@ void read_parameters(app_t * app)
     //     fprintf(stderr,"\tRear Laser RPY : (%f,%f,%f)\n",rpy[0], rpy[1], rpy[2]);
     // }
     // app->rear_laser_ang_offset  = carmen_degrees_to_radians(rpy[2]);
+
+    return 1;
 }
 
 
@@ -320,20 +324,6 @@ int main(int argc, char *argv[])
     app->maxRange = 29.7;
     app->maxUsableRange = 8;
 
-    //we take the floor that we are on as the 0th floor for now
-    app->lcm = lcm_create(NULL);
-    if (!app->lcm) {
-        fprintf(stderr, "ERROR: lcm_create() failed\n");
-        return 1;
-    }
-
-    app->param = bot_param_new_from_server(app->lcm, 1);
-    read_parameters(app);
-
-    app->frames = bot_frames_get_global (app->lcm, app->param);
-
-    fprintf(stderr,"Front laser Offset %f\n",app->front_laser_offset);
-
     const char *optstring = "hc:v";
     char c;
     struct option long_opts[] = { { "help", no_argument, 0, 'h' },
@@ -350,7 +340,7 @@ int main(int argc, char *argv[])
             free(app->chan);
             app->chan = strdup(optarg);
             fprintf(stderr,"Main Laser Channel : %s\n", app->chan);
-            break;        
+            break;
         case 'v':
             app->verbose = 1;
             break;
@@ -364,6 +354,24 @@ int main(int argc, char *argv[])
     if (app->chan == NULL) {
         app->chan = strdup("SKIRT_FRONT");
     }
+
+
+   //we take the floor that we are on as the 0th floor for now
+    app->lcm = lcm_create(NULL);
+    if (!app->lcm) {
+        fprintf(stderr, "ERROR: lcm_create() failed\n");
+        return 1;
+    }
+
+    app->param = bot_param_new_from_server(app->lcm, 1);
+    int ret = read_parameters(app);
+    if (ret == -1)
+        return -1;
+
+    app->frames = bot_frames_get_global (app->lcm, app->param);
+
+    fprintf(stderr,"Primary laser Offset %f\n",app->primary_laser_offset);
+
 
     if (app->verbose) {
         if (alignLaser)
@@ -440,5 +448,9 @@ int main(int argc, char *argv[])
     app_destroy(app);
 
     return 0;
+
+fail:
+    app_destroy (app);
+    return -1;
 }
 
