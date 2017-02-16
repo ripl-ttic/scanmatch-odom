@@ -194,7 +194,7 @@ static void usage(const char *name)
             "  -c, --chan <LCM CHANNEL>        Input lcm channel default:\"LASER\" or \"ROBOT_LASER\"\n"
             "  -s, --scanmatch                 Run Incremental scan matcher every time a node gets added to map\n"
             "  -d, --draw                      Show window with scan matches \n"
-            "  -p, --publish_pose              publish POSE messages\n"
+            //"  -p, --publish_pose              publish POSE messages\n"
             "  -v, --verbose                   Be verbose\n"
             "  -m, --mode  \"HOKUYO_UTM\"|\"SICK\" configures low-level options.\n"
             "\n"
