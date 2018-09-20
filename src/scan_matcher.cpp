@@ -17,16 +17,14 @@
 
 #include <lcm/lcm.h>
 #include <bot_core/bot_core.h>
-//bot param stuff
 #include <bot_param/param_client.h>
 #include <bot_param/param_util.h>
-#include <lcmtypes/bot2_param.h>
 #include <bot_frames/bot_frames.h>
 
 #include <scanmatch/ScanMatcher.hpp>
-#include <lcmtypes/sm_rigid_transform_2d_t.h>
 
-#include <lcmtypes/hr_lcmtypes.h>
+#include <lcmtypes/bot2_param.h>
+#include <lcmtypes/sm_rigid_transform_2d_t.h>
 
 //using namespace isam;
 using namespace std;
@@ -43,7 +41,7 @@ typedef struct {
     ScanMatcher * sm_incremental;
     BotFrames *frames;
     BotParam *param;
-    
+
     int optimize;
     int scanmatchBeforAdd;
     double odometryConfidence;
@@ -67,7 +65,7 @@ typedef struct {
 
     bot_core_planar_lidar_t * r_laser_msg;
     int64_t r_utime;
-    
+
 } app_t;
 
 
@@ -79,7 +77,7 @@ void app_destroy(app_t *app);
 static void laser_handler(const lcm_recv_buf_t *rbuf __attribute__((unused)), const char * channel __attribute__((unused)), const bot_core_planar_lidar_t * msg,
 			  void * user  __attribute__((unused)))
 {
-    static int count = 0; 
+    static int count = 0;
     count++;
     if(count == 40){
         count = 0;
@@ -92,7 +90,7 @@ static void laser_handler(const lcm_recv_buf_t *rbuf __attribute__((unused)), co
     ////////////////////////////////////////////////////////////////////
     smPoint * points = (smPoint *) calloc(msg->nranges, sizeof(smPoint));
 
-    
+
     int numValidPoints = sm_projectRangesAndDecimate(app->beam_skip, app->spatialDecimationThresh, msg->ranges,
                                                      msg->nranges, msg->rad0, msg->radstep, points, app->maxRange, app->validBeamAngles[0], app->validBeamAngles[1]);
     if (numValidPoints < 30) {
@@ -107,7 +105,7 @@ static void laser_handler(const lcm_recv_buf_t *rbuf __attribute__((unused)), co
         fprintf (stderr, "Error getting bot_frames transformation from VELODYNE to local!\n");
         return;
     }
-    
+
     //transform to body pose
     double pos_s[3] = {0}, pos_b[3];
     for(int i=0; i < numValidPoints; i++){
@@ -117,12 +115,12 @@ static void laser_handler(const lcm_recv_buf_t *rbuf __attribute__((unused)), co
         points[i].x = pos_b[0];
         points[i].y = pos_b[1];
     }
-        
+
 
     ////////////////////////////////////////////////////////////////////
     //Actually do the matching
     ////////////////////////////////////////////////////////////////////
-    
+
     //this does it incrementally - so this maintains the frame
 
     ScanTransform r = app->sm_incremental->matchSuccessive(points, numValidPoints, SM_HOKUYO_UTM, sm_get_utime(), NULL); //don't have a better estimate than prev, so just set prior to NULL
@@ -453,4 +451,3 @@ fail:
     app_destroy (app);
     return -1;
 }
-
